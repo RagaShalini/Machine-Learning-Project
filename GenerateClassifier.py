@@ -14,7 +14,7 @@ class GenerateClassifier:
             classifier = GaussianNB()
 
         elif classifier_name == 'SVM':
-            classifier = SVC()
+            classifier = SVC(probability=True)
 
         elif classifier_name == 'Logistic Regression':
             classifier = LogisticRegression()

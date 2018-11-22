@@ -5,6 +5,7 @@ from GenerateClassifier import GenerateClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import roc_curve, auc
+from sklearn.ensemble import VotingClassifier
 import matplotlib.pyplot as plt
 import itertools
 
@@ -12,58 +13,80 @@ import itertools
 class Classifier:
 
     def __init__(self):
-        preprocess = PreprocessData("News Datasets/train.csv", True, 0.8, False)
+        self.preprocess = PreprocessData("News Datasets/train.csv", True, 0.8, False)
         self._load_data()
+        self.classifier_list = []
         self._build_classifiers()
 
+
     def _load_data(self):
-        file_template = "VectorRepresentations/{filename}.npy"
-        self.train_X = np.load(file_template.format(filename="X_train"))
-        self.train_Y = np.load(file_template.format(filename="Y_train"))
-        self.test_X = np.load(file_template.format(filename="X_test"))
-        self.test_Y = np.load(file_template.format(filename="Y_test"))
+
+        self.model = self.preprocess.model
+        self.data_X = self.preprocess.data_X
+        self.data_Y = self.preprocess.data_Y
+        self.tags = self.preprocess.tags
+
+    def _get_random_data(self, seed=0):
+
+        return self.preprocess.get_training_and_test_data(self.model,self.data_X,self.data_Y,self.tags,seed)
 
     def _build_classifiers(self):
-        name = ""
-        """
+
+        self.train_X, self.train_Y, self.test_X, self.test_Y = self._get_random_data(2)
+
+
+
         # Gaussian NB
         name = "Naive Bayes"
         naive_bayes_clf = GenerateClassifier().get_classifer(name)
-        accuracy, precision, recall = self.get_results(naive_bayes_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
-        print("Gaussian Naive Bayes ", accuracy)
+        accuracy ,precision, recall, f1 = self.get_results(naive_bayes_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        self.display(name, accuracy ,precision, recall, f1)
+        self.classifier_list.append((name,naive_bayes_clf))
 
         # SVM
         name = "SVM"
         svm_clf = GenerateClassifier().get_classifer(name)
-        accuracy, precision, recall = self.get_results(svm_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
-        print("SVM ", accuracy)
+        accuracy ,precision, recall, f1 = self.get_results(svm_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        self.display(name, accuracy ,precision, recall, f1)
+        self.classifier_list.append((name,svm_clf))
 
         # Logistic Regression
         name = "Logistic Regression"
         logistic_regression_clf = GenerateClassifier().get_classifer(name)
-        accuracy, precision, recall = self.get_results(logistic_regression_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
-        print("Logistic Regression ", accuracy)
-
+        accuracy ,precision, recall, f1 = self.get_results(logistic_regression_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        self.display(name, accuracy ,precision, recall, f1)
+        self.classifier_list.append((name,logistic_regression_clf))
 
         # Decision Trees
         name = "Decision Tree"
         decision_tree_clf = GenerateClassifier().get_classifer(name)
-        accuracy, precision, recall = self.get_results(decision_tree_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
-        print("Decision Tree ", accuracy)
-        """
+        accuracy ,precision, recall, f1 = self.get_results(decision_tree_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        self.display(name, accuracy ,precision, recall, f1)
+        self.classifier_list.append((name,decision_tree_clf))
 
         # Linear Discriminant Analysis
         name = "Linear Discriminant Analysis"
         linear_discriminant_clf = GenerateClassifier().get_classifer(name)
-        accuracy ,precision, recall = self.get_results(linear_discriminant_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
-        print("Linear Discriminant Analysis ", accuracy)
+        accuracy ,precision, recall, f1 = self.get_results(linear_discriminant_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        self.display(name, accuracy ,precision, recall, f1)
+        self.classifier_list.append((name,linear_discriminant_clf))
 
+        self.ensemble_classifiers_voting()
+
+
+
+    def display(self, name, accuracy ,precision, recall, f1):
+        print("-"*5 + name + "-"*5)
+        print("Accuracy", accuracy)
+        print("Precision", precision)
+        print("Recall", recall)
+        print("F1 score", f1)
 
     def get_results(self, clf, train_x, train_y, test_x, test_y, name):
 
         predictions = self.get_predictions(clf, train_x, train_y, test_x)
         if len(test_y) > 0:
-            accuracy, precision, recall = self._get_scores(test_y, predictions)
+            accuracy, precision, recall, f1 = self._get_scores(test_y, predictions)
 
         # confusion matrix
         plt.figure(1)
@@ -79,7 +102,7 @@ class Classifier:
         self.plot_ROC(false_positive_rate, true_positive_rate, thresholds, roc_auc, name)
         plt.savefig("Images/" + name + "- ROC.png")
         #plt.show()
-        return accuracy, precision, recall
+        return accuracy, precision, recall, f1
 
     def get_predictions(self, clf, train_x, train_y, test_x):
         clf.fit(train_x, train_y)
@@ -90,7 +113,27 @@ class Classifier:
         accuracy = accuracy_score(test_y, predictions)
         precision = precision_score(test_y, predictions)
         recall = recall_score(test_y, predictions)
-        return accuracy, precision, recall
+        f1 = f1_score(test_y, predictions)
+        return accuracy, precision, recall, f1
+
+    def ensemble_classifiers_voting(self):
+
+        estimators = self.classifier_list
+
+        # hard voting
+        name = "Ensemble - Hard Voting"
+        ensemble_clf_voting_hard = VotingClassifier(estimators,voting="hard")
+        accuracy, precision, recall, f1 = self.get_results(ensemble_clf_voting_hard, self.train_X, self.train_Y, self.test_X,
+                                                           self.test_Y, name)
+        self.display(name, accuracy, precision, recall, f1)
+
+        # soft voting
+        name = "Ensemble - Soft Voting"
+        ensemble_clf_voting_soft = VotingClassifier(estimators, voting="soft")
+        accuracy, precision, recall, f1 = self.get_results(ensemble_clf_voting_soft, self.train_X, self.train_Y,
+                                                           self.test_X,
+                                                           self.test_Y, name)
+        self.display(name, accuracy, precision, recall, f1)
 
 
     def plot_confusion_matrix(self, cm, classes,
@@ -107,8 +150,8 @@ class Classifier:
         else:
             print('Confusion matrix, without normalization')
 
-        print(cm)
-
+        #print(cm)
+        plt.clf()
         plt.imshow(cm, interpolation='nearest', cmap=cmap)
         plt.title(title)
         plt.colorbar()
@@ -128,6 +171,7 @@ class Classifier:
         plt.tight_layout()
 
     def plot_ROC(self, false_positive_rate, true_positive_rate, thresholds, roc_auc, name):
+        plt.clf()
         plt.title(name + ' - Receiver Operating Characteristic')
         plt.plot(false_positive_rate, true_positive_rate, 'b',
                  label='AUC = %0.2f' % roc_auc)
@@ -138,5 +182,6 @@ class Classifier:
         plt.ylabel('True Positive Rate')
         plt.xlabel('False Positive Rate')
         #plt.show()
+
 
 classifier = Classifier()
