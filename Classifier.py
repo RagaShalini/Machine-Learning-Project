@@ -6,7 +6,12 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import roc_curve, auc
 from sklearn.ensemble import VotingClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import BaggingClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
+from keras.utils import np_utils
 import itertools
 
 
@@ -35,45 +40,69 @@ class Classifier:
         self.train_X, self.train_Y, self.test_X, self.test_Y = self._get_random_data(2)
 
 
-
+        """
         # Gaussian NB
         name = "Naive Bayes"
-        naive_bayes_clf = GenerateClassifier().get_classifer(name)
+        naive_bayes_clf,params = GenerateClassifier().get_classifer(name)
         accuracy ,precision, recall, f1 = self.get_results(naive_bayes_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
         self.display(name, accuracy ,precision, recall, f1)
         self.classifier_list.append((name,naive_bayes_clf))
+        """
 
         # SVM
         name = "SVM"
-        svm_clf = GenerateClassifier().get_classifer(name)
-        accuracy ,precision, recall, f1 = self.get_results(svm_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        svm_clf,params = GenerateClassifier().get_classifer(name)
+        #svm_clf = self.perform_grid_search(name,svm_clf,params, self.train_X, self.train_Y)
+        accuracy ,precision, recall, f1 = self.get_results(svm_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name,False)
         self.display(name, accuracy ,precision, recall, f1)
         self.classifier_list.append((name,svm_clf))
 
+        """
+
         # Logistic Regression
         name = "Logistic Regression"
-        logistic_regression_clf = GenerateClassifier().get_classifer(name)
-        accuracy ,precision, recall, f1 = self.get_results(logistic_regression_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        logistic_regression_clf,params = GenerateClassifier().get_classifer(name)
+        #logistic_regression_clf = self.perform_grid_search(name, logistic_regression_clf, params, self.train_X, self.train_Y)
+        accuracy ,precision, recall, f1 = self.get_results(logistic_regression_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name, False)
         self.display(name, accuracy ,precision, recall, f1)
         self.classifier_list.append((name,logistic_regression_clf))
+        
 
+        
         # Decision Trees
         name = "Decision Tree"
-        decision_tree_clf = GenerateClassifier().get_classifer(name)
-        accuracy ,precision, recall, f1 = self.get_results(decision_tree_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
+        decision_tree_clf,params = GenerateClassifier().get_classifer(name)
+        #decision_tree_clf = self.perform_grid_search(name, decision_tree_clf, params, self.train_X, self.train_Y)
+
+        accuracy ,precision, recall, f1 = self.get_results(decision_tree_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name,False)
         self.display(name, accuracy ,precision, recall, f1)
         self.classifier_list.append((name,decision_tree_clf))
-
+        
         # Linear Discriminant Analysis
         name = "Linear Discriminant Analysis"
-        linear_discriminant_clf = GenerateClassifier().get_classifer(name)
+        linear_discriminant_clf,params = GenerateClassifier().get_classifer(name)
         accuracy ,precision, recall, f1 = self.get_results(linear_discriminant_clf, self.train_X, self.train_Y, self.test_X, self.test_Y, name)
         self.display(name, accuracy ,precision, recall, f1)
         self.classifier_list.append((name,linear_discriminant_clf))
+        """
 
+        """
+        name = "Neural Network"
+        neural_network, params = GenerateClassifier().get_classifer("Neural Network")
+        self.train_network(neural_network,self.train_X,self.train_Y,self.test_X,self.test_Y)
+        """
+
+        #ensembling
+        """
         self.ensemble_classifiers_voting()
 
-
+    
+        name = "Bagging Decision Trees"
+        #self.ensemble_classifiers_bagging(decision_tree_clf,name)
+        
+        name = "Boosting Decision Trees"
+        self.ensemble_classifiers_bagging(decision_tree_clf, name)
+        """
 
     def display(self, name, accuracy ,precision, recall, f1):
         print("-"*5 + name + "-"*5)
@@ -82,9 +111,9 @@ class Classifier:
         print("Recall", recall)
         print("F1 score", f1)
 
-    def get_results(self, clf, train_x, train_y, test_x, test_y, name):
+    def get_results(self, clf, train_x, train_y, test_x, test_y, name, grid_search=False):
 
-        predictions = self.get_predictions(clf, train_x, train_y, test_x)
+        predictions = self.get_predictions(clf, train_x, train_y, test_x, grid_search)
         if len(test_y) > 0:
             accuracy, precision, recall, f1 = self._get_scores(test_y, predictions)
 
@@ -104,8 +133,9 @@ class Classifier:
         #plt.show()
         return accuracy, precision, recall, f1
 
-    def get_predictions(self, clf, train_x, train_y, test_x):
-        clf.fit(train_x, train_y)
+    def get_predictions(self, clf, train_x, train_y, test_x, grid_search):
+        if not grid_search:
+            clf.fit(train_x, train_y)
         predictions = clf.predict(test_x)
         return predictions
 
@@ -115,6 +145,34 @@ class Classifier:
         recall = recall_score(test_y, predictions)
         f1 = f1_score(test_y, predictions)
         return accuracy, precision, recall, f1
+
+
+    def perform_grid_search(self, name, clf, params,train_x, train_y):
+        grid_search_clf = GridSearchCV(estimator=clf, param_grid=params, n_jobs=1)
+
+        grid_search_clf.fit(train_x,train_y)
+
+        print('Best estimator:', grid_search_clf.best_estimator_)
+        print('Best score :', grid_search_clf.best_score_)
+
+        return grid_search_clf
+
+    def train_network(self, nn, train_x, train_y, test_x, test_y):
+        print("Neural Network Structure",nn.summary())
+        label_encoder = LabelEncoder()
+        label_encoder.fit(train_y)
+        encoded_train_y = np_utils.to_categorical((label_encoder.transform(train_y)))
+        label_encoder.fit(test_y)
+        encoded_test_y = np_utils.to_categorical((label_encoder.transform(test_y)))
+        estimator = nn.fit(train_x, encoded_train_y, epochs=20, batch_size=64)
+        print("Model Trained!")
+        score = nn.evaluate(test_x, encoded_test_y)
+        print("")
+        print("Accuracy = " + format(score[1] * 100, '.2f') + "%")  # 92.69%
+
+        probabs = nn.predict_proba(test_x)
+        y_pred = np.argmax(probabs, axis=1)
+
 
     def ensemble_classifiers_voting(self):
 
@@ -135,6 +193,20 @@ class Classifier:
                                                            self.test_Y, name)
         self.display(name, accuracy, precision, recall, f1)
 
+    def ensemble_classifiers_bagging(self, clf, name):
+        # bagging
+        bagging_clf = BaggingClassifier(clf, max_samples=0.8, oob_score=True)
+        accuracy, precision, recall, f1 = self.get_results(bagging_clf, self.train_X, self.train_Y, self.test_X,
+                                                           self.test_Y, name, False)
+        self.display(name, accuracy, precision, recall, f1)
+
+    def ensemble_classifiers_boosting(self, clf, name):
+        # bagging on decision trees
+        boosting_clf = AdaBoostClassifier(n_estimators=10, base_estimator=clf,learning_rate=1)
+
+        accuracy, precision, recall, f1 = self.get_results(boosting_clf, self.train_X, self.train_Y, self.test_X,
+                                                           self.test_Y, name, False)
+        self.display(name, accuracy, precision, recall, f1)
 
     def plot_confusion_matrix(self, cm, classes,
                               normalize=False,
